@@ -7,14 +7,12 @@
 # v0.5  (11.08.2019)
 # v0.9  (29.08.2019)
 # v0.91 (03.01.2020)
-# v0.92 (04.01.2020)
+# v0.93 (04.01.2020)
 # (c) Rami Saarivuori 2020
 
-VIZversion = "0.92"
+VIZversion = "0.93"
 polku = '//home//pi//SolarVIZ//' # absoluuttinen polku tarvitaan, jotta ohjelma toimii crontabin kanssa oikein
 arch = '//media//pi//KINGSTON//' # arkiston polku
-archiveDate = ''
-screenState = 0
 
 
 try:
@@ -176,8 +174,17 @@ def archive(): #pitempi aikainen tallennus taulukkoon (päivän lopuksi)
 	files = os.listdir(arch)
 	yn = "n"
 
-	if archiveDate == aika:
-		logging.info("Perutetaan arkistointi, arkistointi on jo tehty.")
+	try: #arkistoinnin tarkistus
+		scrfile = open("archstate.txt", "r")
+		num = scrfile.readline()
+		scrfile.close()
+	except Exception:
+		logging.error("Failed to check archive state")
+		return
+
+	if num == aika3:
+		logging.info("Peruutetaan arkistointi, arkistointi jo tehty tältä päivältä.")
+		return
 	else:
 		aika = aika.split('-')
 		for i in files:
@@ -201,7 +208,6 @@ def archive(): #pitempi aikainen tallennus taulukkoon (päivän lopuksi)
 			file1.close()
 			file2.close()
 			os.remove(tempfile)
-			archiveDate = aika3
 			logging.info("Arkistointi olemassaolevaan tiedostoon onnistui.")
 			
 		else: #jos tiedostoa ei löydy
@@ -223,8 +229,14 @@ def archive(): #pitempi aikainen tallennus taulukkoon (päivän lopuksi)
 			file1.close()
 			file2.close()
 			os.remove(tempfile)
-			archiveDate = aika3
 			logging.info("Tallennus uuteen tiedostoon onnistui.")
+		
+		try:
+			scrfile = open("archstate.txt", "w")
+			scrfile.write(aika3)
+			scrfile.close()
+		except Exception:
+			logging.error("Failed to write archive state.")
 			
 
 def utflen(s): #str pituus bitteinä
@@ -235,10 +247,10 @@ def defineScreen(): #muuttujien määritys, KÄYTÄ VAIN KERRAN KÄYNNISTYKSEN Y
 	epd = epd2in7b.EPD()
 	epd.init()
 	
-	screenState = 1
+	
 	epd.Clear(0xFF)
 	epd.sleep()
-	screenState = 0
+	
 	
 	return epd
 
@@ -255,60 +267,70 @@ def Buttons(epd, info):
 		if key1.is_pressed: # Nykyinen PAC
 			logging.info("Key 1 pressed! PAC")
 			solarData = GetInverterData(info)
-			if screenState == 1:
-				time.sleep(25)
 			if solarData == -1:
-				screenState = 1
+				
 				draw(solarData, epd, DrawType=0)
-				screenState = 0
+				
 			else:
-				screenState = 1
+				
 				draw(solarData.PAC, epd, DrawType=1)
-				screenState = 0
+				
 			time.sleep(1)
 			
 		if key2.is_pressed: # Päivän tuotto
 			logging.info("Key 2 pressed! DAY_ENERGY")
 			solarData = GetInverterData(info)
-			if screenState == 1:
-				time.sleep(25)
 			if solarData == -1:
-				screenState = 1
+				
 				draw(solarData, epd, DrawType=0)
-				screenState = 0
+				
 			else:
-				screenState = 1
+				
 				draw(solarData.day_energy, epd, DrawType=2)
-				screenState = 0
+				
 			time.sleep(1)
 			
 		if key3.is_pressed: # Vuoden tuotto
 			logging.info("Key 3 pressed! YEAR_ENERGY")
 			solarData = GetInverterData(info)
-			if screenState == 1:
-				time.sleep(25)
 			if solarData == -1:
-				screenState = 1
+				
 				draw(solarData, epd, DrawType=0)
-				screenState = 0
+				
 			else:
-				screenState = 1
+				
 				draw(solarData.year_energy, epd, DrawType=3)
-				screenState = 0
+				
 			time.sleep(1)
 		
 		if key4.is_pressed: #SHUTDOWN (Päivän suurin tuotto ?)
 			logging.info("Key 4 pressed! SHUTDOWN")
 			solarData = 0
-			if screenState == 1:
-				time.sleep(25)
-			screenState = 1
+			
 			draw(solarData, epd, DrawType=4)
 			time.sleep(1)
 			os.system("shutdown")
 			logging.info("Shutdown schduled.")
 
 def draw(DataToDraw, epd, DrawType): #Piirrä näytölle
+
+	try:
+		scrfile = open("scrstate.txt", "r")
+		num = scrfile.readline()
+		time.sleep(1)
+		scrfile.close()
+	except Exception:
+		logging.error("Failed to check screen state")
+		return
+	if num == "1":
+		time.sleep(25)
+	try:
+		scrfile = open("scrstate.txt", "w")
+		scrfile.write("1")
+		scrfile.close()
+	except Exception:
+		logging.error("Failed to write screen state.")
+		return
 	
 	HBlackimage = Image.new('1', (epd2in7b.EPD_HEIGHT, epd2in7b.EPD_WIDTH), 255)  # 298*126
 	HRedimage = Image.new('1', (epd2in7b.EPD_HEIGHT, epd2in7b.EPD_WIDTH), 255)  # 298*126
@@ -373,7 +395,14 @@ def draw(DataToDraw, epd, DrawType): #Piirrä näytölle
 	epd.display(epd.getbuffer(HBlackimage), epd.getbuffer(HRedimage))
 	logging.info("Setting screen to sleep...")
 	epd.sleep()
-	
+
+	try:
+		scrfile = open("scrstate.txt", "w")
+		scrfile.write("0")
+		scrfile.close()
+	except Exception:
+		logging.error("Failed to write screen state.")
+
 def paaohjelma(info, epd):
 	kello = time.strftime("%H-%M-%S")
 		
@@ -383,36 +412,22 @@ def paaohjelma(info, epd):
 	else:
 		solarData = GetInverterData(info)
 		if solarData == -1:
-			if screenState == 1:
-				time.sleep(25)
-			screenState = 1
 			draw(solarData, epd, DrawType=0)
-			screenState = 0
 			
 		else:
-			if screenState == 1:
-				time.sleep(25)
 			tempSaveData(solarData)
-			screenState = 1
 			draw(solarData.PAC, epd, DrawType=1)
-			screenState = 0
+			
 		
-def aikataulu(info, epd):
+def aikataulu(info, epd, archiveDate):
 	time.sleep(16)
 	solarData = GetInverterData(info)
 	if solarData == -1:
-		if screenState == 1:
-			time.sleep(25)
-		screenState = 1
 		draw(solarData, epd, DrawType=0)
-		screenState = 0
 		
 	else:
-		if screenState == 1:
-			time.sleep(25)
-		screenState = 1
 		draw(solarData.PAC, epd, DrawType=1)
-		screenState = 0
+		
 
 	schedule.every(5).minutes.do(paaohjelma, info, epd)
 	while True:
@@ -425,6 +440,14 @@ def main():
 	logging.basicConfig(filename=logname, level=logging.DEBUG, format='%(asctime)s %(levelname)s - %(message)s', datefmt='%d/%m/%Y %H:%M:%S')
 	startInfo = StartUp()
 	epd = defineScreen()
+	
+	try:
+		scrfile = open("archstate.txt", "w")
+		scrfile.write("0")
+		scrfile.close()
+	except Exception:
+		logging.error("Failed to write initial archive state.")
+
 	p1 = multiprocessing.Process(name='paaohjelma', target=aikataulu, args=(startInfo, epd))
 	p2 = multiprocessing.Process(name='Buttons', target=Buttons, args=(epd, startInfo))
 	#p3 = multiprocessing.Process(name='server', target=mainServer)

@@ -7,11 +7,14 @@
 # v0.5  (11.08.2019)
 # v0.9  (29.08.2019)
 # v0.91 (03.01.2020)
+# v0.92 (04.01.2020)
 # (c) Rami Saarivuori 2020
 
-VIZversion = "0.91"
+VIZversion = "0.92"
 polku = '//home//pi//SolarVIZ//' # absoluuttinen polku tarvitaan, jotta ohjelma toimii crontabin kanssa oikein
 arch = '//media//pi//KINGSTON//' # arkiston polku
+archiveDate = ''
+screenState = 0
 
 
 try:
@@ -67,7 +70,12 @@ def StartUp(): # käynnistys
 		info.append(MAX_P)
 		info.append(InverterIP)
 		
-		file = open(name, "w", encoding="utf-8")
+		try:
+			file = open(name, "w", encoding="utf-8")
+		except Exception:
+			logging.error("Config file writing failed.")
+			exit(-1)
+		
 		file.write("SolarVIZ, V"+VIZversion+" configuration for '"+nimi+"'\n") #kirjoitetaan asetustiedosto
 		for i in info:
 			file.write(i+"\n")
@@ -89,27 +97,11 @@ def StartUp(): # käynnistys
 		logging.info("Initialization successfull.")
 		return info
 
-#def catch_exceptions(cancel_on_failure=False): # virheestä toipuminen (schedule-kirjaston vuoksi)
-    #def catch_exceptions_decorator(job_func):
-        #@functools.wraps(job_func)
-        #def wrapper(*args, **kwargs):
-            #try:
-                #return job_func(*args, **kwargs)
-            #except:
-                #import traceback
-                #print(traceback.format_exc())
-                #if cancel_on_failure:
-                    #return schedule.CancelJob
-        #return wrapper
-    #return catch_exceptions_decorator
-	
-#@catch_exceptions(cancel_on_failure=False)
-
 def GetInverterData(info): # haetaan data rajapinnan kautta invertteriltä
 	logging.info("Muodostetaan yhteys invertteriin...")
 	try:
 		solarData = rq.urlopen("http://"+info[2]+"/solar_api/v1/GetInverterRealtimeData.cgi?Scope=System")
-	except: #invertteriin ei saatu yhteyttä
+	except Exception: #invertteriin ei saatu yhteyttä
 		logging.error("Virhe muodostettaessa yhteyttä invertteriin.")
 		ReturnedData = -1
 		return ReturnedData
@@ -143,77 +135,97 @@ def tempSaveData(solarData): #väliaikainen tallennus tekstitiedostoon jotta dat
 		if a == name2:
 			yn = "y"
 	
-	if int(kello.split('-')[0]) == 0 and int(kello.split('-')[1]) <= 4:
-		file = open(name, "w", encoding='utf-8')
-		tallennus = kello+":"+solarData.PAC+":"+solarData.day_energy+"\n"
-		file.write(tallennus)
-		file.close()
-		logging.info("Tallennus onnistui. (Klo 00)")
-		
-	elif int(kello.split('-')[0]) >= 23 and int(kello.split('-')[1]) >= 50:
-		file = open(name, "a", encoding='utf-8')
-		tallennus = kello+":"+solarData.PAC+":"+solarData.day_energy+":"+solarData.year_energy+":"+solarData.total_energy+"\n"
-		file.write(tallennus)
-		file.close()
-		logging.info("Tallennus onnistui. Klo 23")
-		
-	elif yn == "y":
-		file = open(name, "a", encoding='utf-8')
-		tallennus = kello+":"+solarData.PAC+":"+solarData.day_energy+"\n"
-		file.write(tallennus)
-		file.close()
-		logging.info("Tallennus onnistui. (perus)")
-		
-	else:
-		file = open(name, "w", encoding='utf-8')
-		tallennus = kello+":"+solarData.PAC+":"+solarData.day_energy+"\n"
-		file.write(tallennus)
-		file.close()
-		logging.info("Tallennus onnistui. (uusi tiedosto)")
+	try:
+		if int(kello.split('-')[0]) == 0 and int(kello.split('-')[1]) <= 4:
+			file = open(name, "w", encoding='utf-8')
+			tallennus = kello+":"+solarData.PAC+":"+solarData.day_energy+"\n"
+			file.write(tallennus)
+			file.close()
+			logging.info("Tallennus onnistui. (Klo 00)")
+			
+		elif int(kello.split('-')[0]) >= 23 and int(kello.split('-')[1]) >= 50:
+			file = open(name, "a", encoding='utf-8')
+			tallennus = kello+":"+solarData.PAC+":"+solarData.day_energy+":"+solarData.year_energy+":"+solarData.total_energy+"\n"
+			file.write(tallennus)
+			file.close()
+			logging.info("Tallennus onnistui. Klo 23")
+			
+		elif yn == "y":
+			file = open(name, "a", encoding='utf-8')
+			tallennus = kello+":"+solarData.PAC+":"+solarData.day_energy+"\n"
+			file.write(tallennus)
+			file.close()
+			logging.info("Tallennus onnistui. (perus)")
+			
+		else:
+			file = open(name, "w", encoding='utf-8')
+			tallennus = kello+":"+solarData.PAC+":"+solarData.day_energy+"\n"
+			file.write(tallennus)
+			file.close()
+			logging.info("Tallennus onnistui. (uusi tiedosto)")
+	except Exception:
+		logging.error("Tallennus epäonnistui.")
+		return
 
 def archive(): #pitempi aikainen tallennus taulukkoon (päivän lopuksi)
 	logging.info("Aloitetaan arkistointi.")
 	aika = date.today().strftime("%Y-%m-%d")
 	aika2 = aika+"\n"
+	aika3 = aika
 	tempfile = polku+aika+".txt"
 	files = os.listdir(arch)
 	yn = "n"
-	aika = aika.split('-')
-	for i in files:
-		if i.rstrip('.csv') == aika[0]:
-			yn = "y"
-	if yn == "y": 
-		filename = arch+aika[0]+".csv"
-		file1 = open(filename, "a", encoding='utf-8')
-		file2 = open(tempfile, "r", encoding='utf-8')
-		
-		rivi = file2.readline()
-		file1.write(aika2)
-		while len(rivi) > 0:
-			file1.write(rivi[:-1]+";")
+
+	if archiveDate == aika:
+		logging.info("Perutetaan arkistointi, arkistointi on jo tehty.")
+	else:
+		aika = aika.split('-')
+		for i in files:
+			if i.rstrip('.csv') == aika[0]:
+				yn = "y"
+		if yn == "y": 
+			filename = arch+aika[0]+".csv"
+			try:
+				file1 = open(filename, "a", encoding='utf-8')
+				file2 = open(tempfile, "r", encoding='utf-8')
+			except Exception:
+				logging.error("Arkistotiedostoja ei pystytty avaamaan.")
+				return
+			
 			rivi = file2.readline()
-		file1.write("\n")
-		file1.close()
-		file2.close()
-		os.remove(tempfile)
-		logging.info("Arkistointi olemassaolevaan tiedostoon onnistui.")
-		
-	else: #jos tiedostoa ei löydy
-		logging.info("Arkistoa ei löytynyt. Luodaan uusi.")
-		filename = arch+aika[0]+".csv"
-		file1 = open(filename, "w", encoding='utf-8')
-		file2 = open(tempfile, "r", encoding='utf-8')
-		
-		rivi = file2.readline()
-		file1.write(aika2)
-		while len(rivi) > 0:
-			file1.write(rivi[-1]+";")
+			file1.write(aika2)
+			while len(rivi) > 0:
+				file1.write(rivi[:-1]+";")
+				rivi = file2.readline()
+			file1.write("\n")
+			file1.close()
+			file2.close()
+			os.remove(tempfile)
+			archiveDate = aika3
+			logging.info("Arkistointi olemassaolevaan tiedostoon onnistui.")
+			
+		else: #jos tiedostoa ei löydy
+			logging.info("Arkistoa ei löytynyt. Luodaan uusi.")
+			filename = arch+aika[0]+".csv"
+			try:
+				file1 = open(filename, "w", encoding='utf-8')
+				file2 = open(tempfile, "r", encoding='utf-8')
+			except Exception:
+				logging.error("Arkistotiedostoja ei pystytty avaamaan.")
+				return
+			
 			rivi = file2.readline()
-		file1.write("\n")
-		file1.close()
-		file2.close()
-		os.remove(tempfile)
-		logging.info("Tallennus uuteen tiedostoon onnistui.")
+			file1.write(aika2)
+			while len(rivi) > 0:
+				file1.write(rivi[-1]+";")
+				rivi = file2.readline()
+			file1.write("\n")
+			file1.close()
+			file2.close()
+			os.remove(tempfile)
+			archiveDate = aika3
+			logging.info("Tallennus uuteen tiedostoon onnistui.")
+			
 
 def utflen(s): #str pituus bitteinä
     return len(s.encode('utf-8'))
@@ -223,8 +235,10 @@ def defineScreen(): #muuttujien määritys, KÄYTÄ VAIN KERRAN KÄYNNISTYKSEN Y
 	epd = epd2in7b.EPD()
 	epd.init()
 	
+	screenState = 1
 	epd.Clear(0xFF)
 	epd.sleep()
+	screenState = 0
 	
 	return epd
 
@@ -241,33 +255,54 @@ def Buttons(epd, info):
 		if key1.is_pressed: # Nykyinen PAC
 			logging.info("Key 1 pressed! PAC")
 			solarData = GetInverterData(info)
+			if screenState == 1:
+				time.sleep(25)
 			if solarData == -1:
+				screenState = 1
 				draw(solarData, epd, DrawType=0)
+				screenState = 0
 			else:
+				screenState = 1
 				draw(solarData.PAC, epd, DrawType=1)
+				screenState = 0
 			time.sleep(1)
 			
 		if key2.is_pressed: # Päivän tuotto
 			logging.info("Key 2 pressed! DAY_ENERGY")
 			solarData = GetInverterData(info)
+			if screenState == 1:
+				time.sleep(25)
 			if solarData == -1:
+				screenState = 1
 				draw(solarData, epd, DrawType=0)
+				screenState = 0
 			else:
+				screenState = 1
 				draw(solarData.day_energy, epd, DrawType=2)
+				screenState = 0
 			time.sleep(1)
 			
 		if key3.is_pressed: # Vuoden tuotto
 			logging.info("Key 3 pressed! YEAR_ENERGY")
 			solarData = GetInverterData(info)
+			if screenState == 1:
+				time.sleep(25)
 			if solarData == -1:
+				screenState = 1
 				draw(solarData, epd, DrawType=0)
+				screenState = 0
 			else:
+				screenState = 1
 				draw(solarData.year_energy, epd, DrawType=3)
+				screenState = 0
 			time.sleep(1)
 		
 		if key4.is_pressed: #SHUTDOWN (Päivän suurin tuotto ?)
 			logging.info("Key 4 pressed! SHUTDOWN")
 			solarData = 0
+			if screenState == 1:
+				time.sleep(25)
+			screenState = 1
 			draw(solarData, epd, DrawType=4)
 			time.sleep(1)
 			os.system("shutdown")
@@ -348,20 +383,37 @@ def paaohjelma(info, epd):
 	else:
 		solarData = GetInverterData(info)
 		if solarData == -1:
+			if screenState == 1:
+				time.sleep(25)
+			screenState = 1
 			draw(solarData, epd, DrawType=0)
+			screenState = 0
 			
 		else:
+			if screenState == 1:
+				time.sleep(25)
 			tempSaveData(solarData)
+			screenState = 1
 			draw(solarData.PAC, epd, DrawType=1)
+			screenState = 0
 		
 def aikataulu(info, epd):
 	time.sleep(16)
 	solarData = GetInverterData(info)
 	if solarData == -1:
+		if screenState == 1:
+			time.sleep(25)
+		screenState = 1
 		draw(solarData, epd, DrawType=0)
+		screenState = 0
 		
 	else:
+		if screenState == 1:
+			time.sleep(25)
+		screenState = 1
 		draw(solarData.PAC, epd, DrawType=1)
+		screenState = 0
+
 	schedule.every(5).minutes.do(paaohjelma, info, epd)
 	while True:
 		schedule.run_pending()
@@ -370,7 +422,7 @@ def aikataulu(info, epd):
 def main():
 	time.sleep(30)
 	logname = arch+'SolarVIZ_log.log'
-	logging.basicConfig(filename=logname, level=logging.DEBUG, format='%(asctime)s %(levelname)s - %(message)s', datefmt='%m/%d/%Y %H:%M:%S')
+	logging.basicConfig(filename=logname, level=logging.DEBUG, format='%(asctime)s %(levelname)s - %(message)s', datefmt='%d/%m/%Y %H:%M:%S')
 	startInfo = StartUp()
 	epd = defineScreen()
 	p1 = multiprocessing.Process(name='paaohjelma', target=aikataulu, args=(startInfo, epd))

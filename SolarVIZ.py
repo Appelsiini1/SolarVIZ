@@ -419,7 +419,7 @@ def paaohjelma(info, epd):
 			draw(solarData.PAC, epd, DrawType=1)
 			
 		
-def aikataulu(info, epd, archiveDate):
+def aikataulu(info, epd):
 	time.sleep(16)
 	solarData = GetInverterData(info)
 	if solarData == -1:
@@ -440,13 +440,20 @@ def main():
 	logging.basicConfig(filename=logname, level=logging.DEBUG, format='%(asctime)s %(levelname)s - %(message)s', datefmt='%d/%m/%Y %H:%M:%S')
 	startInfo = StartUp()
 	epd = defineScreen()
-	
+
 	try:
 		scrfile = open("archstate.txt", "w")
 		scrfile.write("0")
 		scrfile.close()
 	except Exception:
 		logging.error("Failed to write initial archive state.")
+
+	try:
+		scrfile = open("scrstate.txt", "w")
+		scrfile.write("0")
+		scrfile.close()
+	except Exception:
+		logging.error("Failed to write initial screen state.")
 
 	p1 = multiprocessing.Process(name='paaohjelma', target=aikataulu, args=(startInfo, epd))
 	p2 = multiprocessing.Process(name='Buttons', target=Buttons, args=(epd, startInfo))

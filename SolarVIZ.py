@@ -8,6 +8,7 @@
 # v0.9  (29.08.2019)
 # v0.91 (03.01.2020)
 # v0.93 (04.01.2020)
+# v0.93.3 (05.01.2020)
 # (c) Rami Saarivuori 2020
 
 VIZversion = "0.93"
@@ -96,7 +97,7 @@ def StartUp(): # käynnistys
 		return info
 
 def GetInverterData(info): # haetaan data rajapinnan kautta invertteriltä
-	logging.info("Muodostetaan yhteys invertteriin...")
+	logging.debug("Muodostetaan yhteys invertteriin...")
 	try:
 		solarData = rq.urlopen("http://"+info[2]+"/solar_api/v1/GetInverterRealtimeData.cgi?Scope=System")
 	except Exception: #invertteriin ei saatu yhteyttä
@@ -119,7 +120,7 @@ def GetInverterData(info): # haetaan data rajapinnan kautta invertteriltä
 	sortedData.total_energy = cleanedData[18][6:]
 	sortedData.year_energy = cleanedData[24][6:]
 	sortedData.InverterStatus = cleanedData[35][9:10]
-	logging.info("Data järjestelty.")
+	logging.debug("Data järjestelty.")
 	return sortedData
 
 def tempSaveData(solarData): #väliaikainen tallennus tekstitiedostoon jotta data voidaan arkistoida päivän päätteeksi
@@ -153,14 +154,14 @@ def tempSaveData(solarData): #väliaikainen tallennus tekstitiedostoon jotta dat
 			tallennus = kello+":"+solarData.PAC+":"+solarData.day_energy+"\n"
 			file.write(tallennus)
 			file.close()
-			logging.info("Tallennus onnistui. (perus)")
+			logging.debug("Tallennus onnistui. (perus)")
 			
 		else:
 			file = open(name, "w", encoding='utf-8')
 			tallennus = kello+":"+solarData.PAC+":"+solarData.day_energy+"\n"
 			file.write(tallennus)
 			file.close()
-			logging.info("Tallennus onnistui. (uusi tiedosto)")
+			logging.debug("Tallennus onnistui. (uusi tiedosto)")
 	except Exception:
 		logging.error("Tallennus epäonnistui.")
 		return
@@ -229,7 +230,7 @@ def archive(): #pitempi aikainen tallennus taulukkoon (päivän lopuksi)
 			file1.close()
 			file2.close()
 			os.remove(tempfile)
-			logging.info("Tallennus uuteen tiedostoon onnistui.")
+			logging.debug("Tallennus uuteen tiedostoon onnistui.")
 		
 		try:
 			scrfile = open("archstate.txt", "w")
@@ -255,7 +256,7 @@ def defineScreen(): #muuttujien määritys, KÄYTÄ VAIN KERRAN KÄYNNISTYKSEN Y
 	return epd
 
 def clear(epd): #tyhjennä näyttö
-	logging.info("Clearing screen...")
+	logging.debug("Clearing screen...")
 	epd.Clear(0xFF)
 	
 def Buttons(epd, info):
@@ -265,7 +266,7 @@ def Buttons(epd, info):
 	key4 = Button(19)
 	while True:
 		if key1.is_pressed: # Nykyinen PAC
-			logging.info("Key 1 pressed! PAC")
+			logging.debug("Key 1 pressed! PAC")
 			solarData = GetInverterData(info)
 			if solarData == -1:
 				
@@ -278,7 +279,7 @@ def Buttons(epd, info):
 			time.sleep(1)
 			
 		if key2.is_pressed: # Päivän tuotto
-			logging.info("Key 2 pressed! DAY_ENERGY")
+			logging.debug("Key 2 pressed! DAY_ENERGY")
 			solarData = GetInverterData(info)
 			if solarData == -1:
 				
@@ -291,7 +292,7 @@ def Buttons(epd, info):
 			time.sleep(1)
 			
 		if key3.is_pressed: # Vuoden tuotto
-			logging.info("Key 3 pressed! YEAR_ENERGY")
+			logging.debug("Key 3 pressed! YEAR_ENERGY")
 			solarData = GetInverterData(info)
 			if solarData == -1:
 				
@@ -304,7 +305,7 @@ def Buttons(epd, info):
 			time.sleep(1)
 		
 		if key4.is_pressed: #SHUTDOWN (Päivän suurin tuotto ?)
-			logging.info("Key 4 pressed! SHUTDOWN")
+			logging.debug("Key 4 pressed! SHUTDOWN")
 			solarData = 0
 			
 			draw(solarData, epd, DrawType=4)
@@ -387,13 +388,13 @@ def draw(DataToDraw, epd, DrawType): #Piirrä näytölle
 		
 		drawred.text((30, 105), str(DataToDraw), font = font40, fill = 0)
 	
-	logging.info("Screen set")
+	logging.debug("Screen set")
 	epd.init()
 
 	clear(epd)
 	logging.info("Drawing to screen...")
 	epd.display(epd.getbuffer(HBlackimage), epd.getbuffer(HRedimage))
-	logging.info("Setting screen to sleep...")
+	logging.debug("Setting screen to sleep...")
 	epd.sleep()
 
 	try:
@@ -437,7 +438,7 @@ def aikataulu(info, epd):
 def main():
 	time.sleep(30)
 	logname = arch+'SolarVIZ_log.log'
-	logging.basicConfig(filename=logname, level=logging.DEBUG, format='%(asctime)s %(levelname)s - %(message)s', datefmt='%d/%m/%Y %H:%M:%S')
+	logging.basicConfig(filename=logname, level=logging.INFO, format='%(asctime)s %(levelname)s - %(message)s', datefmt='%d/%m/%Y %H:%M:%S')
 	startInfo = StartUp()
 	epd = defineScreen()
 

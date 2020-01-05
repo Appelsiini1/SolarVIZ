@@ -223,7 +223,7 @@ def archive(): #pitempi aikainen tallennus taulukkoon (päivän lopuksi)
 			rivi = file2.readline()
 			file1.write(aika2)
 			while len(rivi) > 0:
-				file1.write(rivi[-1]+";")
+				file1.write(rivi[:-1]+";")
 				rivi = file2.readline()
 			file1.write("\n")
 			file1.close()
